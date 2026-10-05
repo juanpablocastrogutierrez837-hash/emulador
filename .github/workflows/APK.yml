@@ -1,0 +1,37 @@
+name: Compilar APK
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: Crear proyecto Android con Capacitor
+        run: |
+          mkdir app && cd app
+          npm init -y
+          npm i @capacitor/core@8 @capacitor/cli@8 @capacitor/android@8
+          H=$(ls ../*.html 2>/dev/null | head -1)
+          if [ -z "$H" ]; then echo "::error::No hay ningun archivo .html en la raiz del repositorio. Sube velocity-underground.html"; ls -la ..; exit 1; fi
+          mkdir www && cp "$H" www/index.html
+          echo '{"appId":"com.velocity.underground","appName":"Velocity Underground","webDir":"www","server":{"androidScheme":"http","cleartext":true}}' > capacitor.config.json
+          npx cap add android
+          M=android/app/src/main/AndroidManifest.xml
+          sed -i 's#</manifest>#<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/><uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/></manifest>#' $M
+          sed -i 's#<activity#<activity android:screenOrientation="sensorLandscape"#' $M
+      - name: Compilar APK
+        working-directory: app/android
+        run: chmod +x gradlew && ./gradlew assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: velocity-underground-apk
+          path: app/android/app/build/outputs/apk/debug/app-debug.apk
